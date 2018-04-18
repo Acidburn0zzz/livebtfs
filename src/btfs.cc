@@ -523,6 +523,8 @@ btfs_read(const char *path, char *buf, size_t size, off_t offset,
 	if (params.browse_only)
 		return -EACCES;
 
+	printf("Raizo : [read %s] [debut : %jd] [size : %zu]\n",path,offset,size);
+
 	pthread_mutex_lock(&lock);
 
 	Read *r = new Read(buf, files[path], offset, size);
