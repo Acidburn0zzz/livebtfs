@@ -204,6 +204,16 @@ setup() {
 	if (params.browse_only)
 		handle.pause();
 
+	int numpieces = ti->num_pieces();
+	std::vector<int> prios(numpieces);
+
+	printf("Raizo : [ti->num_pieces() : %d]\n",numpieces);
+
+	for (int i = 0 ; i < numpieces ; i++)
+		prios[i]= 0 ;
+
+	handle.prioritize_pieces(prios);
+
 	for (int i = 0; i < ti->num_files(); ++i) {
 		std::string parent("");
 
