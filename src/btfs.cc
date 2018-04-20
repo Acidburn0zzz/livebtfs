@@ -94,12 +94,18 @@ jump(int piece, int size) {
 
 	int tail = piece;
 
-	if (!move_to_next_unfinished(tail, ti->num_pieces()))
-		return;
+	printf("Raizo : jump : [tail:%d] [ti->num_pieces:%d]\n",tail,ti->num_pieces());
 
+	if (!move_to_next_unfinished(tail, ti->num_pieces()))
+	{
+		printf("Raizo : jump : move_to_next_unfinished : echec\n");
+		return;
+	}
 	cursor = tail;
 
+	printf("Raizo : jump : [for 0 -> %d]\n",end);
 	for (int i = 0; i < 16; i++) {
+		printf("Raizo : jump : [ priority of tail(%d) = 7]\n",tail);
 		handle.piece_priority(tail++, 7);
 	}
 }
@@ -119,6 +125,9 @@ Read::Read(char *buf, int index, off_t offset, size_t size) {
 #endif
 
 	while (size > 0 && offset < file_size) {
+
+		printf("Raizo : Read::Read : [index %d] [offset : %jd] [size : %zu]\n",index,offset,size);
+
 		libtorrent::peer_request part = ti->map_file(index, offset,
 			(int) size);
 
@@ -178,6 +187,8 @@ int Read::size() {
 int Read::read() {
 	if (size() <= 0)
 		return 0;
+
+	printf("Raizo : Read::read : [piece:%d] [size:%d]\n",parts.front().part.piece,size());
 
 	// Trigger reads of finished pieces
 	trigger();
