@@ -103,11 +103,13 @@ jump(int piece, int size) {
 	}
 	cursor = tail;
 
+/*
 	printf("Raizo : jump : [for 0 -> %d]\n",end);
 	for (int i = 0; i < 16; i++) {
 		printf("Raizo : jump : [ priority of tail(%d) = 7]\n",tail);
 		handle.piece_priority(tail++, 7);
 	}
+*/
 }
 
 static void
@@ -134,6 +136,10 @@ Read::Read(char *buf, int index, off_t offset, size_t size) {
 		part.length = std::min(
 			ti->piece_size(part.piece) - part.start,
 			part.length);
+
+		// bas : passer la priorite de la piece demandee de 0 a 7 (priorite la plus elevee)
+		handle.piece_priority(part.piece,7);
+		// bas
 
 		parts.push_back(Part(part, buf));
 
