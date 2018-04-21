@@ -157,10 +157,16 @@ void Read::fail(int piece) {
 }
 
 void Read::copy(int piece, char *buffer, int size) {
-	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
+	printf("Raizo : Read::copy : [piece %d] [buffer : %p] [size : %d]\n",piece,buffer,size);
+	int numPart=0;
+	for (parts_iter i = parts.begin(); i != parts.end(); ++i,numPart++) {
 		if (i->part.piece == piece && !i->filled)
+		{
 			i->filled = (memcpy(i->buf, buffer + i->part.start,
 				(size_t) i->part.length)) != NULL;
+			if( ! i->filled )
+				printf("Raizo : Read::copy : ! i(%d)->failed\n",numPart);
+		}
 	}
 }
 
@@ -203,13 +209,38 @@ int Read::read() {
 	jump(parts.front().part.piece, size());
 
 	while (!finished() && !failed)
+	{
+		printf("Raizo : Read::read : pthread_cond_wait(&signal_cond, &lock)\n");
 		// Wait for any piece to downloaded
+		
 		pthread_cond_wait(&signal_cond, &lock);
-
+		
+		// --> DAT
+		// test finished()
+		int numParts=0;
+		for (parts_iter i = parts.begin(); i != parts.end(); ++i,numParts++) {
+			if (!i->filled)
+			{
+				printf("Raizo : Read::read : test finished : !i->filled : %d\n",numParts);
+				break;
+			}
+		}
+		
+		// test failed
+		if ( !failed )
+			printf("Raizo : Read::read : test : !failed\n");
+		// --<
+	}
 	if (failed)
+	{
+		printf("Raizo : Read::read : failed : return -EIO\n");
 		return -EIO;
+	}
 	else
+	{
+		printf("Raizo : Read::read : return size():%d\n",size());
 		return size();
+	}
 }
 
 static void
@@ -224,7 +255,7 @@ setup() {
 	int numpieces = ti->num_pieces();
 	std::vector<int> prios(numpieces);
 
-	printf("Raizo : [ti->num_pieces() : %d]\n",numpieces);
+	printf("Raizo : setup : [ti->num_pieces() : %d]\n",numpieces);
 
 	for (int i = 0 ; i < numpieces ; i++)
 		prios[i]= 0 ;
@@ -274,6 +305,7 @@ handle_read_piece_alert(libtorrent::read_piece_alert *a, Log *log) {
 	printf("%s: piece %d size %d\n", __func__, static_cast<int>(a->piece),
 		a->size);
 
+	printf("Raizo : handle_read_piece_alert : pthread_mutex_lock(&lock);\n");
 	pthread_mutex_lock(&lock);
 
 	if (a->ec) {
@@ -288,9 +320,11 @@ handle_read_piece_alert(libtorrent::read_piece_alert *a, Log *log) {
 		}
 	}
 
+	printf("Raizo : handle_read_piece_alert : pthread_mutex_unlock(&lock);\n");
 	pthread_mutex_unlock(&lock);
 
 	// Wake up all threads waiting for download
+	printf("Raizo : handle_read_piece_alert : pthread_cond_broadcast(&signal_cond);\n");
 	pthread_cond_broadcast(&signal_cond);
 }
 
@@ -298,6 +332,7 @@ static void
 handle_piece_finished_alert(libtorrent::piece_finished_alert *a, Log *log) {
 	printf("%s: %d\n", __func__, static_cast<int>(a->piece_index));
 
+	printf("Raizo : handle_piece_finished_alert : pthread_mutex_lock(&lock);\n");
 	pthread_mutex_lock(&lock);
 
 	for (reads_iter i = reads.begin(); i != reads.end(); ++i) {
@@ -307,7 +342,12 @@ handle_piece_finished_alert(libtorrent::piece_finished_alert *a, Log *log) {
 	// Advance sliding window
 	advance();
 
+	printf("Raizo : handle_piece_finished_alert : pthread_mutex_unlock(&lock);\n");
 	pthread_mutex_unlock(&lock);
+	
+	// DAT : Wake up all threads waiting for download
+	printf("Raizo : handle_piece_finished_alert : pthread_cond_broadcast(&signal_cond);\n");
+	pthread_cond_broadcast(&signal_cond);
 }
 
 static void
