@@ -102,6 +102,7 @@ jump(int piece, int size) {
 		return;
 	}
 	cursor = tail;
+	printf("Raizo : jump : [cursor=tail:%d]\n",tail);
 
 /*
 	printf("Raizo : jump : [for 0 -> %d]\n",end);
@@ -171,9 +172,17 @@ void Read::copy(int piece, char *buffer, int size) {
 }
 
 void Read::trigger() {
-	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
+	int numPart=0;
+	for (parts_iter i = parts.begin(); i != parts.end(); ++i,numPart++) {
 		if (handle.have_piece(i->part.piece))
+		{
+			printf("Raizo : Read::trigger : handle.read_piece %d\n",numPart);
 			handle.read_piece(i->part.piece);
+		}
+		else
+		{
+			printf("Raizo : Read::trigger : no handle.have_piece %d\n",numPart);
+		}
 	}
 }
 
@@ -309,6 +318,7 @@ handle_read_piece_alert(libtorrent::read_piece_alert *a, Log *log) {
 	pthread_mutex_lock(&lock);
 
 	if (a->ec) {
+		printf("Raizo : handle_read_piece_alert : fail \n");
 		*log << a->message() << std::endl;
 
 		for (reads_iter i = reads.begin(); i != reads.end(); ++i) {
