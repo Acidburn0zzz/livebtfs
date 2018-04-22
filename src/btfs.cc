@@ -78,6 +78,20 @@ time_t time_of_mount;
 
 static struct btfs_params params;
 
+static void
+show_priority(int piece, int num_pieces) {
+//	pthread_mutex_lock(&lock);
+
+	printf("Raizo : show_priority : [have_piece,priority] : ");
+	for (; piece < num_pieces; piece++) {
+		printf("{%d,%d} ",handle.have_piece(piece),handle.piece_priority(piece));
+	}
+	printf("\n");
+
+//	pthread_mutex_unlock(&lock);
+}
+
+
 static bool
 move_to_next_unfinished(int& piece, int num_pieces) {
 	for (; piece < num_pieces; piece++) {
@@ -95,6 +109,8 @@ jump(int piece, int size) {
 	int tail = piece;
 
 	printf("Raizo : jump : [tail:%d] [ti->num_pieces:%d]\n",tail,ti->num_pieces());
+
+	show_priority(tail, ti->num_pieces());
 
 	if (!move_to_next_unfinished(tail, ti->num_pieces()))
 	{
@@ -219,9 +235,8 @@ int Read::read() {
 
 	while (!finished() && !failed)
 	{
-		printf("Raizo : Read::read : pthread_cond_wait(&signal_cond, &lock)\n");
 		// Wait for any piece to downloaded
-		
+		printf("Raizo : Read::read : pthread_cond_wait(&signal_cond, &lock)\n");
 		pthread_cond_wait(&signal_cond, &lock);
 		
 		// --> DAT
@@ -355,9 +370,11 @@ handle_piece_finished_alert(libtorrent::piece_finished_alert *a, Log *log) {
 	printf("Raizo : handle_piece_finished_alert : pthread_mutex_unlock(&lock);\n");
 	pthread_mutex_unlock(&lock);
 	
+	/*
 	// DAT : Wake up all threads waiting for download
 	printf("Raizo : handle_piece_finished_alert : pthread_cond_broadcast(&signal_cond);\n");
 	pthread_cond_broadcast(&signal_cond);
+	*/
 }
 
 static void
@@ -452,9 +469,11 @@ alert_queue_loop(void *data) {
 	pthread_cleanup_push(&alert_queue_loop_destroy, data);
 
 	while (1) {
+//		printf("Raizo : alert_queue_loop : session->wait_for_alert\n");
 		if (!session->wait_for_alert(libtorrent::seconds(1)))
 			continue;
 
+//		printf("Raizo : alert_queue_loop : depile les alertes reçues\n");
 #if LIBTORRENT_VERSION_NUM < 10100
 		std::deque<libtorrent::alert*> alerts;
 
