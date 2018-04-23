@@ -65,7 +65,7 @@ pthread_t alert_thread;
 std::list<Read*> reads;
 
 // First piece index of the current sliding window
-int cursor;
+//int cursor;
 
 std::map<std::string,int> files;
 std::map<std::string,std::set<std::string> > dirs;
@@ -91,7 +91,7 @@ show_priority(int piece, int num_pieces) {
 //	pthread_mutex_unlock(&lock);
 }
 
-
+/*
 static bool
 move_to_next_unfinished(int& piece, int num_pieces) {
 	for (; piece < num_pieces; piece++) {
@@ -119,20 +119,13 @@ jump(int piece, int size) {
 	}
 	cursor = tail;
 	printf("Raizo : jump : [cursor=tail:%d]\n",tail);
-
-/*
-	printf("Raizo : jump : [for 0 -> %d]\n",end);
-	for (int i = 0; i < 16; i++) {
-		printf("Raizo : jump : [ priority of tail(%d) = 7]\n",tail);
-		handle.piece_priority(tail++, 7);
-	}
-*/
 }
 
 static void
 advance() {
 	jump(cursor, 0);
 }
+*/
 
 Read::Read(char *buf, int index, off_t offset, size_t size) {
 	auto ti = handle.torrent_file();
@@ -155,6 +148,7 @@ Read::Read(char *buf, int index, off_t offset, size_t size) {
 			part.length);
 
 		// bas : passer la priorite de la piece demandee de 0 a 7 (priorite la plus elevee)
+		printf("Raizo : Read::Read : handle.piece_priority(%d,7)\n",part.piece);
 		handle.piece_priority(part.piece,7);
 		// bas
 
@@ -188,16 +182,16 @@ void Read::copy(int piece, char *buffer, int size) {
 }
 
 void Read::trigger() {
-	int numPart=0;
-	for (parts_iter i = parts.begin(); i != parts.end(); ++i,numPart++) {
+	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
 		if (handle.have_piece(i->part.piece))
 		{
-			printf("Raizo : Read::trigger : handle.read_piece %d\n",numPart);
+			printf("Raizo : Read::trigger : piece %d has been completely downloaded\n",i->part.piece);
+			printf("Raizo : Read::trigger : start a asynchronous read operation of piece %d\n",i->part.piece);
 			handle.read_piece(i->part.piece);
 		}
 		else
 		{
-			printf("Raizo : Read::trigger : no handle.have_piece %d\n",numPart);
+			printf("Raizo : Read::trigger : piece %d no completely downloaded\n",i->part.piece);
 		}
 	}
 }
@@ -231,7 +225,20 @@ int Read::read() {
 	trigger();
 
 	// Move sliding window to first piece to serve this request
-	jump(parts.front().part.piece, size());
+	//jump(parts.front().part.piece, size());
+
+	// --> DAT
+	// test finished()
+	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
+		if (!i->filled)
+		{
+			printf("Raizo : Read::read : test finished : !i->filled : %d\n",i->part.piece);
+		}
+	}
+	// test failed
+	if ( !failed )
+		printf("Raizo : Read::read : test : !failed\n");
+	// --<
 
 	while (!finished() && !failed)
 	{
@@ -241,11 +248,10 @@ int Read::read() {
 		
 		// --> DAT
 		// test finished()
-		int numParts=0;
-		for (parts_iter i = parts.begin(); i != parts.end(); ++i,numParts++) {
+		for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
 			if (!i->filled)
 			{
-				printf("Raizo : Read::read : test finished : !i->filled : %d\n",numParts);
+				printf("Raizo : Read::read : test finished : !i->filled : %d\n",i->part.piece);
 				break;
 			}
 		}
@@ -365,7 +371,7 @@ handle_piece_finished_alert(libtorrent::piece_finished_alert *a, Log *log) {
 	}
 
 	// Advance sliding window
-	advance();
+	//advance();
 
 	printf("Raizo : handle_piece_finished_alert : pthread_mutex_unlock(&lock);\n");
 	pthread_mutex_unlock(&lock);
@@ -609,8 +615,9 @@ btfs_read(const char *path, char *buf, size_t size, off_t offset,
 	if (params.browse_only)
 		return -EACCES;
 
-	printf("Raizo : [read %s] [debut : %jd] [size : %zu]\n",path,offset,size);
+	printf("Raizo : btfs_read : [read %s] [debut : %jd] [size : %zu]\n",path,offset,size);
 
+	printf("Raizo : btfs_read : pthread_mutex_lock(&lock);\n");
 	pthread_mutex_lock(&lock);
 
 	Read *r = new Read(buf, files[path], offset, size);
@@ -624,6 +631,7 @@ btfs_read(const char *path, char *buf, size_t size, off_t offset,
 
 	delete r;
 
+	printf("Raizo : btfs_read : pthread_mutex_unlock(&lock);\n");
 	pthread_mutex_unlock(&lock);
 
 	return s;
