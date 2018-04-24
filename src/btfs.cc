@@ -759,7 +759,7 @@ btfs_init(struct fuse_conn_info *conn) {
 
 	pack.set_int(pack.seed_choking_algorithm, libtorrent::settings_pack::fastest_upload);
 	pack.set_bool(pack.prioritize_partial_pieces, true);
-
+	pack.set_bool(pack.close_redundant_connections, false);
 	pack.set_bool(pack.enable_dht, false);
 
 	session = new libtorrent::session(pack, flags);
