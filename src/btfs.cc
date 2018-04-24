@@ -282,8 +282,8 @@ setup() {
 	if (params.browse_only)
 		handle.pause();
 
-	int numpieces = ti->num_pieces();
-	printf("Raizo : setup : [ti->num_pieces() : %d]\n",numpieces);
+	std::vector<int>::size_type  numpieces =  (std::vector<int>::size_type) ti->num_pieces();
+	printf("Raizo : setup : [ti->num_pieces() : %lu]\n",numpieces);
 
 	//std::vector<int> prios(numpieces); // default value is already : 0
 	std::vector<int> prios(numpieces,0); // default value : 0
