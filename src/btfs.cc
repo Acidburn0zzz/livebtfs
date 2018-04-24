@@ -283,12 +283,14 @@ setup() {
 		handle.pause();
 
 	int numpieces = ti->num_pieces();
-	std::vector<int> prios(numpieces);
-
 	printf("Raizo : setup : [ti->num_pieces() : %d]\n",numpieces);
 
-	for (int i = 0 ; i < numpieces ; i++)
+	//std::vector<int> prios(numpieces); // default value is already : 0
+	std::vector<int> prios(numpieces,0); // default value : 0
+/*
+	for (std::vector<int>::size_type i = 0 ; i < numpieces ; i++)
 		prios[i]= 0 ;
+*/
 
 	handle.prioritize_pieces(prios);
 
