@@ -61,7 +61,7 @@ libtorrent::session *session = NULL;
 libtorrent::torrent_handle handle;
 
 pthread_t alert_thread;
-pthread_t  debloque;
+pthread_t  debloque_thread;
 
 std::list<Read*> reads;
 
@@ -208,7 +208,11 @@ static void * debloque(void *arg){
 
  
 	printf("Je vais tenter de secourir quelqu un\n");
-	pthread_cond_broadcast(&signal_cond);
+	
+	while(1){
+		pthread_cond_broadcast(&signal_cond);
+		sleep(5);
+	}
 
 	pthread_exit(NULL); 
 
@@ -221,11 +225,9 @@ setup() {
 	printf("Got metadata. Now ready to start downloading.\n");
 
 
-	if(pthread_create(&debloque, NULL, debloque, NULL) != 0){
+	if(pthread_create(&debloque_thread, NULL, debloque, NULL) != 0){
 
-		perror("Un problème est survenu lors de la création du thread debloque\n");
-
-		return EXIT_FAILURE;
+		printf("Un problème est survenu lors de la création du thread debloque\n");
 
 	}
 
@@ -725,9 +727,9 @@ static void
 btfs_destroy(void *user_data) {
 	pthread_mutex_lock(&lock);
 
+	pthread_join(debloque_thread, NULL);
 	pthread_cancel(alert_thread);
 	pthread_join(alert_thread, NULL);
-	pthread_join(debloque, NULL);
 
 #if LIBTORRENT_VERSION_NUM < 10200
 	int flags = 0;
