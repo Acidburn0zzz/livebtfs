@@ -206,6 +206,12 @@ int Read::read() {
 
 static void * debloque(void *arg){
 
+	int oldstate, oldtype;
+
+	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &oldstate);
+	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, &oldtype);
+
+
  
 	printf("Je vais tenter de secourir quelqu un\n");
 	
@@ -727,8 +733,10 @@ btfs_init(struct fuse_conn_info *conn) {
 static void
 btfs_destroy(void *user_data) {
 	pthread_mutex_lock(&lock);
-
+	
+	pthread_cancel(debloque_thread);
 	pthread_join(debloque_thread, NULL);
+
 	pthread_cancel(alert_thread);
 	pthread_join(alert_thread, NULL);
 
