@@ -210,6 +210,7 @@ static void * debloque(void *arg){
 	printf("Je vais tenter de secourir quelqu un\n");
 	
 	while(1){
+		printf("je regarde s'il y a un thread bloqué\n");
 		pthread_cond_broadcast(&signal_cond);
 		sleep(5);
 	}
