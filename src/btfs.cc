@@ -249,7 +249,9 @@ int Read::read() {
 		// Wait for any piece to downloaded
 		printf("Raizo : Read::read : pthread_cond_wait(&signal_cond, &lock)\n");
 		pthread_cond_wait(&signal_cond, &lock);
-		
+
+		trigger();
+
 		// --> DAT
 		// test finished()
 		for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
