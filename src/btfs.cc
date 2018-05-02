@@ -198,9 +198,12 @@ int Read::read() {
 	while (!finished() && !failed)
 		// Wait for any piece to downloaded
 		// bas:
+	{
 		sem_post(& sem);
+		printf("sleep\n");
 		pthread_cond_wait(&signal_cond, &lock);
-
+		printf("reveil\n");
+	}
 	if (failed)
 		return -EIO;
 	else
@@ -287,12 +290,15 @@ handle_read_piece_alert(libtorrent::read_piece_alert *a, Log *log) {
 		}
 	}
 
+
+	sem_wait(&sem);
+	printf("send broadcast\n");
+	pthread_cond_broadcast(&signal_cond);
+	
 	pthread_mutex_unlock(&lock);
 
 	// Wake up all threads waiting for download
 	//bas:
-	sem_wait(&sem);
-	pthread_cond_broadcast(&signal_cond);
 }
 
 static void
@@ -542,6 +548,8 @@ btfs_read(const char *path, char *buf, size_t size, off_t offset,
 		return -EACCES;
 
 	pthread_mutex_lock(&lock);
+
+	printf("Nouvelle demande : offset:%d  size:%d\n",offset,size);
 
 	Read *r = new Read(buf, files[path], offset, size);
 
