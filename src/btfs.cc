@@ -26,7 +26,7 @@ along with BTFS.  If not, see <http://www.gnu.org/licenses/>.
 #include <pthread.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-
+#include <semaphore.h>
 #include <fuse.h>
 
 // The below pragma lines will silence lots of compiler warnings in the
@@ -72,6 +72,9 @@ std::map<std::string,std::set<std::string> > dirs;
 
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t signal_cond = PTHREAD_COND_INITIALIZER;
+
+//bas:
+sem_t sem ;
 
 // Time used as "last modified" time
 time_t time_of_mount;
@@ -194,6 +197,8 @@ int Read::read() {
 
 	while (!finished() && !failed)
 		// Wait for any piece to downloaded
+		// bas:
+		sem_post(& sem);
 		pthread_cond_wait(&signal_cond, &lock);
 
 	if (failed)
@@ -267,6 +272,7 @@ handle_read_piece_alert(libtorrent::read_piece_alert *a, Log *log) {
 	printf("%s: piece %d size %d\n", __func__, static_cast<int>(a->piece),
 		a->size);
 
+
 	pthread_mutex_lock(&lock);
 
 	if (a->ec) {
@@ -284,6 +290,8 @@ handle_read_piece_alert(libtorrent::read_piece_alert *a, Log *log) {
 	pthread_mutex_unlock(&lock);
 
 	// Wake up all threads waiting for download
+	//bas:
+	sem_wait(&sem);
 	pthread_cond_broadcast(&signal_cond);
 }
 
@@ -573,6 +581,10 @@ btfs_statfs(const char *path, struct statvfs *stbuf) {
 
 static void *
 btfs_init(struct fuse_conn_info *conn) {
+
+	//bas:
+	sem_init(&sem,0,0);
+
 	pthread_mutex_lock(&lock);
 
 	time_of_mount = time(NULL);
