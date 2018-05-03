@@ -187,7 +187,7 @@ void Read::trigger() {
 
 bool Read::finished() {
 	bool fill = true ;
-	int ct ; 
+	int ct = 0 ; 
 	for (int j = 0 ; j < 2 ; j++)
 	{	
 		ct = 0 ;
@@ -197,13 +197,13 @@ bool Read::finished() {
 			else
 				ct++;
 		}
+
+		if (fill) break ;
 	}
+	
 	printf("Demande : %d Nombre de pièces téléchargées: %d/%d\n",m_num_demande,ct,nombre_pieces());
 
-	if (fill) 
-		return true;
-	else
-		return false ;
+	return fill;
 }
 
 /*bool Read::finished() {
