@@ -194,8 +194,11 @@ bool Read::finished() {
 		for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
 			if (!i->filled)
 				fill = false;
-			else
+			else {
 				ct++;
+				printf("Demande : %d Piece : %d téléchargée\n",m_num_demande,i->part.piece);
+
+			}
 		}
 
 		if (fill) break ;
