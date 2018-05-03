@@ -26,7 +26,7 @@ along with BTFS.  If not, see <http://www.gnu.org/licenses/>.
 #include <pthread.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-
+#include <semaphore.h>
 #include <fuse.h>
 
 // The below pragma lines will silence lots of compiler warnings in the
@@ -62,9 +62,6 @@ libtorrent::torrent_handle handle;
 
 pthread_t alert_thread;
 
-//bas :
-pthread_t debloque_thread;
-
 std::list<Read*> reads;
 
 // First piece index of the current sliding window
@@ -76,23 +73,14 @@ std::map<std::string,std::set<std::string> > dirs;
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t signal_cond = PTHREAD_COND_INITIALIZER;
 
+//bas:
+sem_t sem ;
+int nb_demandes = 0 ;
+
 // Time used as "last modified" time
 time_t time_of_mount;
 
 static struct btfs_params params;
-
-static void
-show_priority(int piece, int num_pieces) {
-//	pthread_mutex_lock(&lock);
-
-	printf("Raizo : show_priority : [have_piece,priority] : ");
-	for (; piece < num_pieces; piece++) {
-		printf("{%d,%d} ",handle.have_piece(piece),handle.piece_priority(piece));
-	}
-	printf("\n");
-
-//	pthread_mutex_unlock(&lock);
-}
 
 /*
 static bool
@@ -111,17 +99,15 @@ jump(int piece, int size) {
 
 	int tail = piece;
 
-	printf("Raizo : jump : [tail:%d] [ti->num_pieces:%d]\n",tail,ti->num_pieces());
-
-	show_priority(tail, ti->num_pieces());
-
 	if (!move_to_next_unfinished(tail, ti->num_pieces()))
-	{
-		printf("Raizo : jump : move_to_next_unfinished : echec\n");
 		return;
-	}
+
 	cursor = tail;
-	printf("Raizo : jump : [cursor=tail:%d]\n",tail);
+	// bas : 
+	//for (int i = 0; i < 16; i++) {
+	//	handle.piece_priority(tail++, 7);
+	//}
+	// bas
 }
 
 static void
@@ -130,7 +116,9 @@ advance() {
 }
 */
 
-Read::Read(char *buf, int index, off_t offset, size_t size) {
+Read::Read(char *buf, int index, off_t offset, size_t size, int num_demande) {
+	
+	m_num_demande = num_demande ;
 	auto ti = handle.torrent_file();
 
 #if LIBTORRENT_VERSION_NUM < 10100
@@ -140,9 +128,6 @@ Read::Read(char *buf, int index, off_t offset, size_t size) {
 #endif
 
 	while (size > 0 && offset < file_size) {
-
-		printf("Raizo : Read::Read : [index %d] [offset : %jd] [size : %zu]\n",index,offset,size);
-
 		libtorrent::peer_request part = ti->map_file(index, offset,
 			(int) size);
 
@@ -151,10 +136,9 @@ Read::Read(char *buf, int index, off_t offset, size_t size) {
 			part.length);
 
 		// bas : passer la priorite de la piece demandee de 0 a 7 (priorite la plus elevee)
-		printf("Raizo : Read::Read : handle.piece_priority(%d,7)\n",part.piece);
 		handle.piece_priority(part.piece,7);
 		// bas
-
+		
 		parts.push_back(Part(part, buf));
 
 		size -= (size_t) part.length;
@@ -171,50 +155,64 @@ void Read::fail(int piece) {
 }
 
 void Read::copy(int piece, char *buffer, int size) {
-	printf("Raizo : Read::copy : [piece %d] [buffer : %p] [size : %d]\n",piece,buffer,size);
-	int numPart=0;
-	for (parts_iter i = parts.begin(); i != parts.end(); ++i,numPart++) {
+	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
 		if (i->part.piece == piece && !i->filled)
-		{
-			printf("Raizo : Read::copy : memcpy in [dest:%p] [src:%p] [length:%zu]\n",i->buf,buffer + i->part.start,(size_t) i->part.length);
 			i->filled = (memcpy(i->buf, buffer + i->part.start,
 				(size_t) i->part.length)) != NULL;
-			if( ! i->filled )
-				printf("Raizo : Read::copy : ! i(%d)->failed\n",numPart);
+	}
+}
+
+
+bool Read::verifier_si_piece_recu() {
+	
+	bool recu = false ;
+	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
+		if (handle.have_piece(i->part.piece))
+		{
+			handle.read_piece(i->part.piece);
+			recu = true ;
 		}
 	}
+	return recu ;
 }
 
 void Read::trigger() {
 	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
 		if (handle.have_piece(i->part.piece))
 		{
-			printf("Raizo : Read::trigger : piece %d has been completely downloaded\n",i->part.piece);
-			printf("Raizo : Read::trigger : start a asynchronous read operation of piece %d\n",i->part.piece);
 			handle.read_piece(i->part.piece);
-		}
-		else
-		{
-			printf("Raizo : Read::trigger : piece %d no completely downloaded\n",i->part.piece);
 		}
 	}
 }
 
 bool Read::finished() {
-	bool finish=true;
-
-	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
-		if (handle.have_piece(i->part.piece))
-			handle.read_piece(i->part.piece);
-		if (!i->filled)
-		{
-			printf("Raizo : Read::read : test finished : !i->filled : %d\n",i->part.piece);
-			finish&=false;
+	bool fill = true ;
+	int ct ; 
+	for (int j = 0 ; j < 2 ; j++)
+	{	
+		ct = 0 ;
+		for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
+			if (!i->filled)
+				fill = false;
+			else
+				ct++;
 		}
 	}
+	printf("Demande : %d Nombre de pièces téléchargées: %d/%d\n",m_num_demande,ct,nombre_pieces());
 
-	return finish;
+	if (fill) 
+		return true;
+	else
+		return false ;
 }
+
+/*bool Read::finished() {
+	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
+		if (!i->filled)
+			return false;
+	}
+	return true;
+}*/
 
 int Read::size() {
 	int s = 0;
@@ -226,105 +224,65 @@ int Read::size() {
 	return s;
 }
 
+int Read::nombre_pieces() {
+	int s = 0;
+
+	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
+		s ++;;
+	}
+
+	return s;
+}
+
+
 int Read::read() {
 	if (size() <= 0)
 		return 0;
 
-	printf("Raizo : Read::read : [piece:%d] [size:%d]\n",parts.front().part.piece,size());
+	// Trigger reads of finished pieces, dans le cas où c'est déjà téléchargé
+	trigger();
 
 	// Move sliding window to first piece to serve this request
 	//jump(parts.front().part.piece, size());
 
-	// --> DAT
-	// test finished()
-	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
-		if (!i->filled)
-		{
-			printf("Raizo : Read::read : test finished : !i->filled : %d\n",i->part.piece);
-		}
-	}
-	// test failed
-	if ( !failed )
-		printf("Raizo : Read::read : test : !failed\n");
-	// --<
-
 	while (!finished() && !failed)
-	{
 		// Wait for any piece to downloaded
-		printf("Raizo : Read::read : pthread_cond_wait(&signal_cond, &lock)\n");
-		pthread_cond_wait(&signal_cond, &lock);
+		// bas:
+	{
 
-		// --> DAT
-		// test finished()
-		for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
-			if (!i->filled)
-			{
-				printf("Raizo : Read::read : test finished : !i->filled : %d\n",i->part.piece);
-				break;
-			}
-		}
-		
-		// test failed
-		if ( !failed )
-			printf("Raizo : Read::read : test : !failed\n");
-		// --<
+		printf("Demande : %d Attente de la condition\n",m_num_demande);
+		//sem_post(& sem);
+		pthread_cond_wait(&signal_cond, &lock);
+		printf("Demande : %d reveil de la condition\n",m_num_demande);
+
 	}
 	if (failed)
-	{
-		printf("Raizo : Read::read : failed : return -EIO\n");
 		return -EIO;
-	}
 	else
-	{
-		printf("Raizo : Read::read : return size():%d\n",size());
 		return size();
-	}
-}
-
-// bas :
-static void * debloque(void *arg){
-
-	int oldstate, oldtype;
-
-	pthread_setcancelstate(PTHREAD_CANCEL_ENABLE, &oldstate);
-	pthread_setcanceltype(PTHREAD_CANCEL_ASYNCHRONOUS, &oldtype);
-
-	printf("Je vais tenter de secourir quelqu un\n");
-
-	while(1){
-		//printf("je regarde s'il y a un thread bloqué\n");
-		pthread_cond_broadcast(&signal_cond);
-		sleep(5);
-	}
-
-	pthread_exit(NULL);
-
 }
 
 static void
 setup() {
+	printf("Prototype version.\n");
 	printf("Got metadata. Now ready to start downloading.\n");
 
 	auto ti = handle.torrent_file();
 
-	if(pthread_create(&debloque_thread, NULL, debloque, NULL) != 0){
-		printf("Un problème est survenu lors de la création du thread debloque\n");
-	}
-
-	if (params.browse_only)
-		handle.pause();
-
+	//bas : initialiser les priorites de telechargement des blocs a 0
+	//i.e. pas de telechargement
 	std::vector<int>::size_type  numpieces =  (std::vector<int>::size_type) ti->num_pieces();
-	printf("Raizo : setup : [ti->num_pieces() : %lu]\n",numpieces);
-
 	//std::vector<int> prios(numpieces); // default value is already : 0
 	std::vector<int> prios(numpieces,0); // default value : 0
 /*
 	for (std::vector<int>::size_type i = 0 ; i < numpieces ; i++)
 		prios[i]= 0 ;
 */
-
 	handle.prioritize_pieces(prios);
+	//bas
+
+	if (params.browse_only)
+		handle.pause();
 
 	for (int i = 0; i < ti->num_files(); ++i) {
 		std::string parent("");
@@ -369,53 +327,55 @@ handle_read_piece_alert(libtorrent::read_piece_alert *a, Log *log) {
 	printf("%s: piece %d size %d\n", __func__, static_cast<int>(a->piece),
 		a->size);
 
-	printf("Raizo : handle_read_piece_alert : pthread_mutex_lock(&lock);\n");
+
+	//bas:
+	//sem_wait(&sem);
 	pthread_mutex_lock(&lock);
 
 	if (a->ec) {
-		printf("Raizo : handle_read_piece_alert : fail\n");
 		*log << a->message() << std::endl;
 
 		for (reads_iter i = reads.begin(); i != reads.end(); ++i) {
 			(*i)->fail(a->piece);
 		}
 	} else {
-		printf("Raizo : handle_read_piece_alert : copy\n");
 		for (reads_iter i = reads.begin(); i != reads.end(); ++i) {
 			(*i)->copy(a->piece, a->buffer.get(), a->size);
 		}
 	}
 
-	printf("Raizo : handle_read_piece_alert : pthread_mutex_unlock(&lock);\n");
+
+	//bas:
+	//pthread_cond_broadcast(&signal_cond);
 	pthread_mutex_unlock(&lock);
 
+	printf("Send broadcast\n");
+
 	// Wake up all threads waiting for download
-	printf("Raizo : handle_read_piece_alert : pthread_cond_broadcast(&signal_cond);\n");
 	pthread_cond_broadcast(&signal_cond);
+
 }
 
 static void
 handle_piece_finished_alert(libtorrent::piece_finished_alert *a, Log *log) {
 	printf("%s: %d\n", __func__, static_cast<int>(a->piece_index));
 
-	printf("Raizo : handle_piece_finished_alert : pthread_mutex_lock(&lock);\n");
 	pthread_mutex_lock(&lock);
+	
+	//bas:
+	bool end_while = false ;
+	while (! end_while)
+		for (reads_iter i = reads.begin(); i != reads.end(); ++i) {
+			if ((*i)->verifier_si_piece_recu())
+				end_while = true ;
+		}
 
-	for (reads_iter i = reads.begin(); i != reads.end(); ++i) {
-		(*i)->trigger();
-	}
-
+	
 	// Advance sliding window
 	//advance();
 
-	printf("Raizo : handle_piece_finished_alert : pthread_mutex_unlock(&lock);\n");
 	pthread_mutex_unlock(&lock);
-	
-	/*
-	// DAT : Wake up all threads waiting for download
-	printf("Raizo : handle_piece_finished_alert : pthread_cond_broadcast(&signal_cond);\n");
-	pthread_cond_broadcast(&signal_cond);
-	*/
+
 }
 
 static void
@@ -510,11 +470,9 @@ alert_queue_loop(void *data) {
 	pthread_cleanup_push(&alert_queue_loop_destroy, data);
 
 	while (1) {
-		printf("Raizo : alert_queue_loop : session->wait_for_alert\n");
 		if (!session->wait_for_alert(libtorrent::seconds(1)))
 			continue;
 
-//		printf("Raizo : alert_queue_loop : depile les alertes reçues\n");
 #if LIBTORRENT_VERSION_NUM < 10100
 		std::deque<libtorrent::alert*> alerts;
 
@@ -650,12 +608,11 @@ btfs_read(const char *path, char *buf, size_t size, off_t offset,
 	if (params.browse_only)
 		return -EACCES;
 
-	printf("Raizo : btfs_read : [read %s] [debut : %jd] [size : %zu]\n",path,offset,size);
-
-	printf("Raizo : btfs_read : pthread_mutex_lock(&lock);\n");
 	pthread_mutex_lock(&lock);
 
-	Read *r = new Read(buf, files[path], offset, size);
+
+	nb_demandes++; // on considère que fuse gère l'exlusion mutuelle ?
+	Read *r = new Read(buf, files[path], offset, size,nb_demandes);
 
 	reads.push_back(r);
 
@@ -666,7 +623,6 @@ btfs_read(const char *path, char *buf, size_t size, off_t offset,
 
 	delete r;
 
-	printf("Raizo : btfs_read : pthread_mutex_unlock(&lock);\n");
 	pthread_mutex_unlock(&lock);
 
 	return s;
@@ -694,6 +650,10 @@ btfs_statfs(const char *path, struct statvfs *stbuf) {
 
 static void *
 btfs_init(struct fuse_conn_info *conn) {
+
+	//bas:
+	sem_init(&sem,0,0);
+
 	pthread_mutex_lock(&lock);
 
 	time_of_mount = time(NULL);
@@ -751,7 +711,6 @@ btfs_init(struct fuse_conn_info *conn) {
 	session->add_dht_router(std::make_pair("router.utorrent.com", 6881));
 	session->add_dht_router(std::make_pair("dht.transmissionbt.com", 6881));
 */
-
 	session->async_add_torrent(*p);
 #else
 	libtorrent::settings_pack pack;
@@ -781,23 +740,19 @@ btfs_init(struct fuse_conn_info *conn) {
 #endif
 */
 
-	printf("raizo : Configuration of libtorrent\n");
-	//pack.set_int(libtorrent::settings_pack::request_timeout, 10);
-	pack.set_int(libtorrent::settings_pack::request_timeout, 60);
-	pack.set_str(libtorrent::settings_pack::listen_interfaces, interfaces.str());
-	pack.set_bool(libtorrent::settings_pack::strict_end_game_mode, false);
-	pack.set_bool(libtorrent::settings_pack::announce_to_all_trackers, true);
-	pack.set_bool(libtorrent::settings_pack::announce_to_all_tiers, true);
-	pack.set_int(libtorrent::settings_pack::download_rate_limit, params.max_download_rate * 1024);
-	pack.set_int(libtorrent::settings_pack::upload_rate_limit, params.max_upload_rate * 1024);
-	pack.set_int(libtorrent::settings_pack::alert_mask, alerts);
+	pack.set_int(pack.request_timeout, 10);
+	pack.set_str(pack.listen_interfaces, interfaces.str());
+	pack.set_bool(pack.strict_end_game_mode, false);
+	pack.set_bool(pack.announce_to_all_trackers, true);
+	pack.set_bool(pack.announce_to_all_tiers, true);
+	pack.set_int(pack.download_rate_limit, params.max_download_rate * 1024);
+	pack.set_int(pack.upload_rate_limit, params.max_upload_rate * 1024);
+	pack.set_int(pack.alert_mask, alerts);
 
-	pack.set_int(libtorrent::settings_pack::seed_choking_algorithm, libtorrent::settings_pack::fastest_upload);
-	pack.set_bool(libtorrent::settings_pack::prioritize_partial_pieces, true);
-	pack.set_bool(libtorrent::settings_pack::close_redundant_connections, false);
-	pack.set_bool(libtorrent::settings_pack::enable_dht, false);
-	pack.set_str(libtorrent::settings_pack::dht_bootstrap_nodes, "");
-	pack.set_bool(libtorrent::settings_pack::allow_multiple_connections_per_ip, true);
+	pack.set_int(pack.seed_choking_algorithm, libtorrent::settings_pack::fastest_upload);
+	pack.set_bool(pack.prioritize_partial_pieces, true);
+	pack.set_bool(pack.close_redundant_connections, false);
+	pack.set_bool(pack.enable_dht, false);
 
 	session = new libtorrent::session(pack, flags);
 
@@ -827,10 +782,6 @@ btfs_init(struct fuse_conn_info *conn) {
 static void
 btfs_destroy(void *user_data) {
 	pthread_mutex_lock(&lock);
-
-	// bas
-	pthread_cancel(debloque_thread);
-	pthread_join(debloque_thread, NULL);
 
 	pthread_cancel(alert_thread);
 	pthread_join(alert_thread, NULL);

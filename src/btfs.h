@@ -58,23 +58,23 @@ private:
 class Read
 {
 public:
-	Read(char *buf, int index, off_t offset, size_t size);
+	Read(char *buf, int index, off_t offset, size_t size,int num_demande);
 
 	void fail(int piece);
 
 	void copy(int piece, char *buffer, int size);
 
 	void trigger();
-
+	bool verifier_si_piece_recu(); 
 	bool finished();
 
 	int size();
-
+	int nombre_pieces(); 
 	int read();
 
 private:
 	bool failed = false;
-
+	int m_num_demande ;
 	std::vector<Part> parts;
 };
 
