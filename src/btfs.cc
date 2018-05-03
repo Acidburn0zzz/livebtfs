@@ -189,7 +189,7 @@ int Read::read() {
 	if (size() <= 0)
 		return 0;
 
-	// Trigger reads of finished pieces
+	// Trigger reads of finished pieces, dans le cas où c'est déjà téléchargé
 	trigger();
 
 	// Move sliding window to first piece to serve this request
@@ -199,10 +199,10 @@ int Read::read() {
 		// Wait for any piece to downloaded
 		// bas:
 	{
-		sem_post(& sem);
 		printf("sleep\n");
 		pthread_cond_wait(&signal_cond, &lock);
 		printf("reveil\n");
+		sem_post(& sem);
 	}
 	if (failed)
 		return -EIO;
@@ -291,12 +291,12 @@ handle_read_piece_alert(libtorrent::read_piece_alert *a, Log *log) {
 	}
 
 
-	sem_wait(&sem);
 	printf("send broadcast\n");
 	pthread_cond_broadcast(&signal_cond);
 	
 	pthread_mutex_unlock(&lock);
 
+	sem_wait(&sem);
 	// Wake up all threads waiting for download
 	//bas:
 }
