@@ -18,6 +18,7 @@ along with BTFS.  If not, see <http://www.gnu.org/licenses/>.
 */
 
 #define FUSE_USE_VERSION 26
+#define _DEBUG
 
 #include <cstdlib>
 #include <iostream>
@@ -26,7 +27,7 @@ along with BTFS.  If not, see <http://www.gnu.org/licenses/>.
 #include <pthread.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-
+#include <semaphore.h>
 #include <fuse.h>
 
 // The below pragma lines will silence lots of compiler warnings in the
@@ -73,6 +74,10 @@ std::map<std::string,std::set<std::string> > dirs;
 pthread_mutex_t lock = PTHREAD_MUTEX_INITIALIZER;
 pthread_cond_t signal_cond = PTHREAD_COND_INITIALIZER;
 
+//bas:
+sem_t sem ;
+int nb_demandes = 0 ;
+
 // Time used as "last modified" time
 time_t time_of_mount;
 
@@ -99,7 +104,7 @@ jump(int piece, int size) {
 		return;
 
 	cursor = tail;
-	// bas : 
+	// bas :
 	//for (int i = 0; i < 16; i++) {
 	//	handle.piece_priority(tail++, 7);
 	//}
@@ -112,7 +117,9 @@ advance() {
 }
 */
 
-Read::Read(char *buf, int index, off_t offset, size_t size) {
+Read::Read(char *buf, int index, off_t offset, size_t size, int num_demande) {
+
+	m_num_demande = num_demande ;
 	auto ti = handle.torrent_file();
 
 #if LIBTORRENT_VERSION_NUM < 10100
@@ -132,7 +139,7 @@ Read::Read(char *buf, int index, off_t offset, size_t size) {
 		// bas : passer la priorite de la piece demandee de 0 a 7 (priorite la plus elevee)
 		handle.piece_priority(part.piece,7);
 		// bas
-		
+
 		parts.push_back(Part(part, buf));
 
 		size -= (size_t) part.length;
@@ -156,21 +163,91 @@ void Read::copy(int piece, char *buffer, int size) {
 	}
 }
 
+void Read::seek_and_read (int numPiece) {
+
+	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
+		if ( i->part.piece == numPiece )
+		{
+			while ( ! handle.have_piece(i->part.piece) );
+			#ifdef _DEBUG
+			printf("Read::Read::seek_and_read : lance message read_piece pour la piece cherche : %d\n",i->part.piece);
+			#endif
+			handle.read_piece(i->part.piece);
+		}
+		else
+		{
+			if ( ! i->filled )
+				if (handle.have_piece(i->part.piece))
+				{
+					#ifdef _DEBUG
+					printf("Read::seek_and_read : lance message read_piece %d\n",i->part.piece);
+					#endif
+					handle.read_piece(i->part.piece);
+				}
+		}
+	}
+}
+
+
+bool Read::verifier_si_piece_recu() {
+
+	bool recu = false ;
+	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
+		if (handle.have_piece(i->part.piece))
+		{
+			#ifdef _DEBUG
+			printf("Read::verifier_si_piece_recu : lance message read_piece %d\n",i->part.piece);
+			#endif
+			handle.read_piece(i->part.piece);
+			recu = true ;
+		}
+	}
+	return recu ;
+}
+
 void Read::trigger() {
 	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
 		if (handle.have_piece(i->part.piece))
+		{
 			handle.read_piece(i->part.piece);
+		}
 	}
 }
 
 bool Read::finished() {
+	bool fill = true ;
+	int ct = 0 ;
+	//for (int j = 0 ; j < 2 ; j++)
+//	{
+		ct = 0 ;
+		for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
+			if (!i->filled)
+				fill = false;
+			else {
+				ct++;
+				#ifdef _DEBUG
+				printf("Demande : %d Piece : %d téléchargée\n",m_num_demande,i->part.piece);
+				#endif
+
+			}
+		}
+
+//		if (fill) break ;
+//	}
+
+	#ifdef _DEBUG
+	printf("Demande : %d Nombre de pièces téléchargées: %d/%d\n",m_num_demande,ct,nombre_pieces());
+	#endif
+	return fill;
+}
+
+/*bool Read::finished() {
 	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
 		if (!i->filled)
 			return false;
 	}
-
 	return true;
-}
+}*/
 
 int Read::size() {
 	int s = 0;
@@ -182,11 +259,22 @@ int Read::size() {
 	return s;
 }
 
+int Read::nombre_pieces() {
+	int s = 0;
+
+	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
+		s ++;;
+	}
+
+	return s;
+}
+
+
 int Read::read() {
 	if (size() <= 0)
 		return 0;
 
-	// Trigger reads of finished pieces
+	// Trigger reads of finished pieces, dans le cas où c'est déjà téléchargé
 	trigger();
 
 	// Move sliding window to first piece to serve this request
@@ -194,8 +282,17 @@ int Read::read() {
 
 	while (!finished() && !failed)
 		// Wait for any piece to downloaded
+		// bas:
+	{
+		#ifdef _DEBUG
+		printf("Demande : %d Attente de la condition\n",m_num_demande);
+		#endif
+		//sem_post(& sem);
 		pthread_cond_wait(&signal_cond, &lock);
-
+		#ifdef _DEBUG
+		printf("Demande : %d reveil de la condition\n",m_num_demande);
+		#endif
+	}
 	if (failed)
 		return -EIO;
 	else
@@ -264,9 +361,15 @@ setup() {
 
 static void
 handle_read_piece_alert(libtorrent::read_piece_alert *a, Log *log) {
+
+#ifdef _DEBUG
 	printf("%s: piece %d size %d\n", __func__, static_cast<int>(a->piece),
 		a->size);
+#endif
 
+
+	//bas:
+	//sem_wait(&sem);
 	pthread_mutex_lock(&lock);
 
 	if (a->ec) {
@@ -281,24 +384,31 @@ handle_read_piece_alert(libtorrent::read_piece_alert *a, Log *log) {
 		}
 	}
 
+
+	//bas:
+	//pthread_cond_broadcast(&signal_cond);
 	pthread_mutex_unlock(&lock);
 
+#ifdef _DEBUG
+	printf("Send broadcast\n");
+#endif
 	// Wake up all threads waiting for download
 	pthread_cond_broadcast(&signal_cond);
+
 }
 
 static void
 handle_piece_finished_alert(libtorrent::piece_finished_alert *a, Log *log) {
-	printf("%s: %d\n", __func__, static_cast<int>(a->piece_index));
 
+#ifdef _DEBUG
+	printf("%s: %d\n", __func__, static_cast<int>(a->piece_index));
+#endif
 	pthread_mutex_lock(&lock);
 
-	for (reads_iter i = reads.begin(); i != reads.end(); ++i) {
-		(*i)->trigger();
-	}
+	int piece_to_found=static_cast<int>(a->piece_index);
 
-	// Advance sliding window
-	//advance();
+	for (reads_iter i = reads.begin(); i != reads.end(); ++i)
+		(*i)->seek_and_read(piece_to_found);
 
 	pthread_mutex_unlock(&lock);
 }
@@ -535,7 +645,9 @@ btfs_read(const char *path, char *buf, size_t size, off_t offset,
 
 	pthread_mutex_lock(&lock);
 
-	Read *r = new Read(buf, files[path], offset, size);
+
+	nb_demandes++; // on considère que fuse gère l'exlusion mutuelle ?
+	Read *r = new Read(buf, files[path], offset, size,nb_demandes);
 
 	reads.push_back(r);
 
@@ -573,6 +685,10 @@ btfs_statfs(const char *path, struct statvfs *stbuf) {
 
 static void *
 btfs_init(struct fuse_conn_info *conn) {
+
+	//bas:
+	sem_init(&sem,0,0);
+
 	pthread_mutex_lock(&lock);
 
 	time_of_mount = time(NULL);
@@ -659,7 +775,9 @@ btfs_init(struct fuse_conn_info *conn) {
 #endif
 */
 
-	//pack.set_int(libtorrent::settings_pack::request_timeout, 10);
+
+
+//pack.set_int(libtorrent::settings_pack::request_timeout, 10);
 	pack.set_int(libtorrent::settings_pack::request_timeout, 60);
 	pack.set_str(libtorrent::settings_pack::listen_interfaces, interfaces.str());
 	pack.set_bool(libtorrent::settings_pack::strict_end_game_mode, false);
@@ -675,6 +793,7 @@ btfs_init(struct fuse_conn_info *conn) {
 	pack.set_bool(libtorrent::settings_pack::enable_dht, false);
 	pack.set_str(libtorrent::settings_pack::dht_bootstrap_nodes, "");
 	pack.set_bool(libtorrent::settings_pack::allow_multiple_connections_per_ip, true);
+
 
 	session = new libtorrent::session(pack, flags);
 
@@ -823,7 +942,7 @@ populate_target(std::string& target, char *arg) {
 		else
 			perror("Failed to expand target");
 
-		free(x);		
+		free(x);
 	} else {
 		perror("Failed to generate target");
 	}
@@ -858,8 +977,8 @@ populate_metadata(libtorrent::add_torrent_params& p, const char *arg) {
 		CURL *ch = curl_easy_init();
 
 		curl_easy_setopt(ch, CURLOPT_URL, uri.c_str());
-		curl_easy_setopt(ch, CURLOPT_WRITEFUNCTION, handle_http); 
-		curl_easy_setopt(ch, CURLOPT_WRITEDATA, (void *) &output); 
+		curl_easy_setopt(ch, CURLOPT_WRITEFUNCTION, handle_http);
+		curl_easy_setopt(ch, CURLOPT_WRITEDATA, (void *) &output);
 		curl_easy_setopt(ch, CURLOPT_USERAGENT, "btfs/" VERSION);
 		curl_easy_setopt(ch, CURLOPT_FOLLOWLOCATION, 1);
 
