@@ -20,6 +20,8 @@ along with BTFS.  If not, see <http://www.gnu.org/licenses/>.
 #define FUSE_USE_VERSION 26
 #define _DEBUG
 
+//#define _DEBUG
+
 #include <cstdlib>
 #include <iostream>
 #include <fstream>
@@ -31,7 +33,7 @@ along with BTFS.  If not, see <http://www.gnu.org/licenses/>.
 #include <fuse.h>
 
 // The below pragma lines will silence lots of compiler warnings in the
-// libtorrent headers file. Not btfs' fault.
+// libtorrent headers file. Not livebtfs' fault.
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wsign-conversion"
 #pragma GCC diagnostic ignored "-Wconversion"
@@ -50,7 +52,7 @@ along with BTFS.  If not, see <http://www.gnu.org/licenses/>.
 
 #include <curl/curl.h>
 
-#include "btfs.h"
+#include "livebtfs.h"
 
 #define RETV(s, v) { s; return v; };
 #define STRINGIFY(s) #s
@@ -270,6 +272,7 @@ int Read::nombre_pieces() {
 }
 
 
+
 int Read::read() {
 	if (size() <= 0)
 		return 0;
@@ -400,15 +403,20 @@ handle_read_piece_alert(libtorrent::read_piece_alert *a, Log *log) {
 static void
 handle_piece_finished_alert(libtorrent::piece_finished_alert *a, Log *log) {
 
-#ifdef _DEBUG
-	printf("%s: %d\n", __func__, static_cast<int>(a->piece_index));
-#endif
-	pthread_mutex_lock(&lock);
-
 	int piece_to_found=static_cast<int>(a->piece_index);
 
-	for (reads_iter i = reads.begin(); i != reads.end(); ++i)
+	#ifdef _DEBUG
+	printf("%s: %d\n", __func__, piece_to_found);
+	#endif
+
+	pthread_mutex_lock(&lock);
+
+	for (reads_iter i = reads.begin(); i != reads.end(); ++i) {
 		(*i)->seek_and_read(piece_to_found);
+	}
+
+	// Advance sliding window
+	//advance();
 
 	pthread_mutex_unlock(&lock);
 }
@@ -920,9 +928,9 @@ populate_target(std::string& target, char *arg) {
 		templ += arg;
 	} else if (getenv("HOME")) {
 		templ += getenv("HOME");
-		templ += "/.btfs";
+		templ += "/." PACKAGE;
 	} else {
-		templ += "/tmp/btfs";
+		templ += "/tmp/" PACKAGE;
 	}
 
 	if (mkdir(templ.c_str(), S_IRWXU | S_IRWXG | S_IROTH | S_IXOTH) < 0) {
@@ -930,7 +938,7 @@ populate_target(std::string& target, char *arg) {
 			RETV(perror("Failed to create target"), false);
 	}
 
-	templ += "/btfs-XXXXXX";
+	templ += "/" PACKAGE "-XXXXXX";
 
 	char *s = strdup(templ.c_str());
 
@@ -977,9 +985,9 @@ populate_metadata(libtorrent::add_torrent_params& p, const char *arg) {
 		CURL *ch = curl_easy_init();
 
 		curl_easy_setopt(ch, CURLOPT_URL, uri.c_str());
-		curl_easy_setopt(ch, CURLOPT_WRITEFUNCTION, handle_http);
-		curl_easy_setopt(ch, CURLOPT_WRITEDATA, (void *) &output);
-		curl_easy_setopt(ch, CURLOPT_USERAGENT, "btfs/" VERSION);
+		curl_easy_setopt(ch, CURLOPT_WRITEFUNCTION, handle_http); 
+		curl_easy_setopt(ch, CURLOPT_WRITEDATA, (void *) &output); 
+		curl_easy_setopt(ch, CURLOPT_USERAGENT, PACKAGE "/" VERSION);
 		curl_easy_setopt(ch, CURLOPT_FOLLOWLOCATION, 1);
 
 		CURLcode res = curl_easy_perform(ch);
@@ -1099,7 +1107,7 @@ static void
 print_help() {
 	printf("usage: " PACKAGE " [options] metadata mountpoint\n");
 	printf("\n");
-	printf("btfs options:\n");
+	printf(PACKAGE " options:\n");
 	printf("    --version -v           show version information\n");
 	printf("    --help -h              show this message\n");
 	printf("    --help-fuse            print all fuse options\n");
@@ -1146,7 +1154,7 @@ main(int argc, char *argv[]) {
 	}
 
 	if (params.help || params.help_fuse) {
-		// Print info about btfs' command line options
+		// Print info about livebtfs' command line options
 		print_help();
 
 		if (params.help_fuse) {

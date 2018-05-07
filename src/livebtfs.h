@@ -27,7 +27,7 @@ along with BTFS.  If not, see <http://www.gnu.org/licenses/>.
 #include "libtorrent/config.hpp"
 #include <libtorrent/peer_request.hpp>
 
-#include "btfsstat.h"
+#include "livebtfsstat.h"
 
 namespace btfs
 {
@@ -65,8 +65,10 @@ public:
 	void copy(int piece, char *buffer, int size);
 
 	void trigger();
+
 	void seek_and_read (int numPiece);
 	bool verifier_si_piece_recu();
+
 	bool finished();
 
 	int size();
