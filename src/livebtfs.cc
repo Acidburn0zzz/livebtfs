@@ -85,43 +85,10 @@ time_t time_of_mount;
 
 static struct btfs_params params;
 
-/*
-static bool
-move_to_next_unfinished(int& piece, int num_pieces) {
-	for (; piece < num_pieces; piece++) {
-		if (!handle.have_piece(piece))
-			return true;
-	}
-
-	return false;
-}
-
-static void
-jump(int piece, int size) {
-	auto ti = handle.torrent_file();
-
-	int tail = piece;
-
-	if (!move_to_next_unfinished(tail, ti->num_pieces()))
-		return;
-
-	cursor = tail;
-	// bas :
-	//for (int i = 0; i < 16; i++) {
-	//	handle.piece_priority(tail++, 7);
-	//}
-	// bas
-}
-
-static void
-advance() {
-	jump(cursor, 0);
-}
-*/
-
 Read::Read(char *buf, int index, off_t offset, size_t size, int num_demande) {
 
 	m_num_demande = num_demande ;
+
 	auto ti = handle.torrent_file();
 
 	int64_t file_size = ti->files().file_size(index);
@@ -279,9 +246,6 @@ int Read::read() {
 	// Trigger reads of finished pieces, dans le cas où c'est déjà téléchargé
 	trigger();
 
-	// Move sliding window to first piece to serve this request
-	//jump(parts.front().part.piece, size());
-
 	while (!finished() && !failed)
 		// Wait for any piece to downloaded
 		// bas:
@@ -405,9 +369,6 @@ handle_piece_finished_alert(libtorrent::piece_finished_alert *a, Log *log) {
 	for (reads_iter i = reads.begin(); i != reads.end(); ++i) {
 		(*i)->seek_and_read(piece_to_found);
 	}
-
-	// Advance sliding window
-	//advance();
 
 	pthread_mutex_unlock(&lock);
 }
