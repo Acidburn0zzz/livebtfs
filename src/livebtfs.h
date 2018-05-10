@@ -78,6 +78,7 @@ public:
 private:
 	bool failed = false;
 	int m_num_demande ;
+	int _size;
 	std::vector<Part> parts;
 };
 
