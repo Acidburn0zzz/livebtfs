@@ -695,8 +695,8 @@ btfs_init(struct fuse_conn_info *conn) {
 
 
 
-//pack.set_int(libtorrent::settings_pack::request_timeout, 10);
-	pack.set_int(libtorrent::settings_pack::request_timeout, 60);
+	pack.set_int(libtorrent::settings_pack::request_timeout, 10);
+	//pack.set_int(libtorrent::settings_pack::request_timeout, 60);
 	pack.set_str(libtorrent::settings_pack::listen_interfaces, interfaces.str());
 	pack.set_bool(libtorrent::settings_pack::strict_end_game_mode, false);
 	pack.set_bool(libtorrent::settings_pack::announce_to_all_trackers, true);
