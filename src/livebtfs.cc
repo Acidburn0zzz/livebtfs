@@ -132,10 +132,14 @@ void Read::copy(int piece, char *buffer, int size) {
 
 void Read::seek_and_read (int numPiece) {
 
+int id=rand();
+
 	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
 		if ( i->part.piece == numPiece )
 		{
+			printf("Read::seek_and_read : wait %d (%d)\n",i->part.piece,id);
 			while ( ! handle.have_piece(i->part.piece) );
+			printf("Read::seek_and_read : wait %d ok (%d)\n",i->part.piece,id);
 			#ifdef _DEBUG
 			printf("Read::Read::seek_and_read : lance message read_piece pour la piece cherche : %d\n",i->part.piece);
 			#endif
