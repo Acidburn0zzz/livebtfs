@@ -142,12 +142,15 @@ int id=rand();
 		if ( i->part.piece == numPiece )
 		{
 			printf("Read::seek_and_read : wait %d (%d)\n",i->part.piece,id);
-			while ( ! handle.have_piece(i->part.piece) );
+			while ( ! i->filled && ! handle.have_piece(i->part.piece) );
 			printf("Read::seek_and_read : wait %d ok (%d)\n",i->part.piece,id);
-			#ifdef _DEBUG
-			printf("Read::Read::seek_and_read : lance message read_piece pour la piece cherche : %d\n",i->part.piece);
-			#endif
-			handle.read_piece(i->part.piece);
+			if ( ! i->filled )
+			{
+				#ifdef _DEBUG
+				printf("Read::Read::seek_and_read : lance message read_piece pour la piece cherche : %d\n",i->part.piece);
+				#endif
+				handle.read_piece(i->part.piece);
+			}
 		}
 		else
 		{
@@ -707,6 +710,7 @@ btfs_init(struct fuse_conn_info *conn) {
 	pack.set_int(libtorrent::settings_pack::request_timeout, 10);
 	//pack.set_int(libtorrent::settings_pack::request_timeout, 60);
 	pack.set_int(libtorrent::settings_pack::peer_timeout, 10);
+
 	pack.set_str(libtorrent::settings_pack::listen_interfaces, interfaces.str());
 	pack.set_bool(libtorrent::settings_pack::strict_end_game_mode, false);
 	pack.set_bool(libtorrent::settings_pack::announce_to_all_trackers, true);
