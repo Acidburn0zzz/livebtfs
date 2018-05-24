@@ -606,7 +606,7 @@ btfs_init(struct fuse_conn_info *conn) {
 
 	pack.set_int(libtorrent::settings_pack::request_timeout, 10);
 	//pack.set_int(libtorrent::settings_pack::request_timeout, 60);
-	pack.set_int(libtorrent::settings_pack::peer_timeout, 10);
+	//pack.set_int(libtorrent::settings_pack::peer_timeout, 10);
 
 	pack.set_str(libtorrent::settings_pack::listen_interfaces, interfaces.str());
 	pack.set_bool(libtorrent::settings_pack::strict_end_game_mode, false);
@@ -616,9 +616,9 @@ btfs_init(struct fuse_conn_info *conn) {
 	pack.set_int(libtorrent::settings_pack::upload_rate_limit, params.max_upload_rate * 1024);
 	pack.set_int(libtorrent::settings_pack::alert_mask, alerts);
 
-	//pack.set_int(libtorrent::settings_pack::seed_choking_algorithm, libtorrent::settings_pack::fastest_upload);
-	pack.set_int(libtorrent::settings_pack::seed_choking_algorithm, libtorrent::settings_pack::fixed_slots_choker);
-	pack.set_int(libtorrent::settings_pack::unchoke_slots_limit, 30);
+	pack.set_int(libtorrent::settings_pack::seed_choking_algorithm, libtorrent::settings_pack::fastest_upload);
+	//pack.set_int(libtorrent::settings_pack::seed_choking_algorithm, libtorrent::settings_pack::fixed_slots_choker);
+	//pack.set_int(libtorrent::settings_pack::unchoke_slots_limit, 30);
 	//pack.set_int(libtorrent::settings_pack::unchoke_slots_limit, -1);
 
 	pack.set_bool(libtorrent::settings_pack::prioritize_partial_pieces, true);
