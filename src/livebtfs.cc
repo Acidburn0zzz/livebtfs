@@ -165,10 +165,9 @@ void Read::trigger() {
 	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
 		if ( numPiece == -1 )
 			numPiece = i->part.piece;
-		else if ( numPiece != i->part.piece )
-			printf("Read::trigger : piece differente : %d != %d\n",numPiece,i->part.piece);
-		
-		
+		else if ( numPiece == i->part.piece )
+			printf("!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! Read::trigger : piece identiques dans parts : %d\n",numPiece);
+	
 		if (handle.have_piece(i->part.piece))
 			handle.read_piece(i->part.piece);
 	}
@@ -271,6 +270,8 @@ handle_read_piece_alert(libtorrent::read_piece_alert *a, Log *log) {
 	#endif
 
 	pthread_mutex_lock(&lock);
+	
+	printf("> %s: piece %d size %d\n", __func__, static_cast<int>(a->piece), a->size);
 	
 	int cpt=0;
 
