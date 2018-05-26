@@ -116,15 +116,26 @@ void Read::fail(int piece) {
 
 // return true if piece is found
 bool Read::copy(int piece, char *buffer, int size) {
+	printf("[--Read::copy : %d\n",piece);
+	int cpt=0;
 	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
-		if (i->part.piece == piece )
+		printf("	part : piece=%d start=%d length=%d rempli=%d\n",i->part.piece, i->part.start , i->part.length, i->filled);
+		if (i->part.piece == piece && !i->filled)
 		{
-			if( !i->filled )
-				i->filled = (memcpy(i->buf, buffer + i->part.start,
-					(size_t) i->part.length)) != NULL;
-			return true;
+			printf("		copy : piece = %d start : %d length : %d\n",piece, i->part.start , i->part.length);
+			i->filled = (memcpy(i->buf, buffer + i->part.start,
+				(size_t) i->part.length)) != NULL;
+			cpt++;
 		}
 	}
+	if ( cpt > 1 )
+		printf("=======================================> Read::copy : cpt = %d\n",cpt);
+	
+	printf("]\n");
+		
+	if ( cpt )
+		return true;
+
 	return false;
 }
 
@@ -149,7 +160,15 @@ void Read::seek_and_read (int numPiece) {
 }
 
 void Read::trigger() {
+	int numPiece=-1;
+	
 	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
+		if ( numPiece == -1 )
+			numPiece = i->part.piece;
+		else if ( numPiece != i->part.piece )
+			printf("Read::trigger : piece differente : %d != %d\n",numPiece,i->part.piece);
+		
+		
 		if (handle.have_piece(i->part.piece))
 			handle.read_piece(i->part.piece);
 	}
@@ -252,6 +271,8 @@ handle_read_piece_alert(libtorrent::read_piece_alert *a, Log *log) {
 	#endif
 
 	pthread_mutex_lock(&lock);
+	
+	int cpt=0;
 
 	if (a->ec) {
 		*log << a->message() << std::endl;
@@ -262,9 +283,12 @@ handle_read_piece_alert(libtorrent::read_piece_alert *a, Log *log) {
 	} else {
 		for (reads_iter i = reads.begin(); i != reads.end(); ++i) {
 			if ( (*i)->copy(a->piece, a->buffer.get(), a->size) )
-				break;
+				cpt++;
 		}
 	}
+
+	if( cpt > 1 )
+		printf("---------------------------------------> handle_read_piece_alert : cpt = %d\n",cpt);
 
 	pthread_mutex_unlock(&lock);
 
@@ -503,9 +527,16 @@ btfs_read(const char *path, char *buf, size_t size, off_t offset,
 		return -EACCES;
 
 	pthread_mutex_lock(&lock);
-
+	
 	Read *r = new Read(buf, files[path], offset, size);
 
+/*	
+	for (reads_iter _read = reads.begin(); _read != reads.end(); ++_read) {
+		for (parts_iter _part = _read->parts.begin(); _part-> != _read->parts.end(); ++_part) {
+			if (  r->read 
+		}
+	}
+*/
 	reads.push_back(r);
 
 	// Wait for read to finish
