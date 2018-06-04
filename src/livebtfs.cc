@@ -142,15 +142,15 @@ int id=rand();
 	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
 		if ( i->part.piece == numPiece )
 		{
-			printf("Read::seek_and_read : wait %d (%d)\n",i->part.piece,id);
-			while ( ! i->filled && ! handle.have_piece(i->part.piece) );
-			printf("Read::seek_and_read : wait %d ok (%d)\n",i->part.piece,id);
+			printf("Read::seek_and_read : wait %d (%d)\n",numPiece,id);
+			while ( ! i->filled && ! handle.have_piece(numPiece) );
+			printf("Read::seek_and_read : wait %d ok (%d)\n",numPiece,id);
 			if ( ! i->filled )
 			{
 				#ifdef _DEBUG
-				printf("Read::Read::seek_and_read : lance message read_piece pour la piece cherche : %d\n",i->part.piece);
+				printf("Read::Read::seek_and_read : lance message read_piece pour la piece cherche : %d\n",numPiece);
 				#endif
-				handle.read_piece(i->part.piece);
+				handle.read_piece(numPiece);
 			}
 		}
 		else
