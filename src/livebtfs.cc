@@ -129,7 +129,7 @@ void Read::copy(int piece, char *buffer) {
 			if( !i->filled )
 				i->filled = (memcpy(i->buf, buffer + i->part.start,
 					(size_t) i->part.length)) != NULL;
-			return;
+			//return; // experimentally usefull, but perhaps it depends of size of torrent's piece
 		}
 	}
 	return;
