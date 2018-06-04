@@ -1032,6 +1032,7 @@ print_help() {
 	printf("    --max-port=N           end of listen port range\n");
 	printf("    --max-download-rate=N  max download rate (in kB/s)\n");
 	printf("    --max-upload-rate=N    max upload rate (in kB/s)\n");
+	printf("    --disable-dht          disable the usage of DHT\n");
 }
 
 int
