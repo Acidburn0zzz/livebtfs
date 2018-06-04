@@ -71,14 +71,13 @@ public:
 
 	bool finished();
 
-	int size();
 	int nombre_pieces();
 	int read();
 
 private:
 	bool failed = false;
 	int m_num_demande ;
-	int _size;
+	int size = 0;
 	std::vector<Part> parts;
 };
 

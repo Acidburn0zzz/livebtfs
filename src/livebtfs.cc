@@ -93,8 +93,6 @@ Read::Read(char *buf, int index, off_t offset, size_t size, int num_demande) {
 
 	int64_t file_size = ti->files().file_size(index);
 
-	_size=0;
-
 	while (size > 0 && offset < file_size) {
 		libtorrent::peer_request part = ti->map_file(index, offset,
 			(int) size);
@@ -102,6 +100,8 @@ Read::Read(char *buf, int index, off_t offset, size_t size, int num_demande) {
 		part.length = std::min(
 			ti->piece_size(part.piece) - part.start,
 			part.length);
+
+		this->size+=part.length;
 
 		// bas : passer la priorite de la piece demandee de 0 a 7 (priorite la plus elevee)
 		handle.piece_priority(part.piece,7);
@@ -228,17 +228,6 @@ bool Read::finished() {
 	return true;
 }*/
 
-int Read::size() {
-	if ( _size ) // != 0 then already calculated
-		return _size;
-
-	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
-		_size += i->part.length;
-	}
-
-	return _size;
-}
-
 int Read::nombre_pieces() {
 	int s = 0;
 
@@ -252,7 +241,7 @@ int Read::nombre_pieces() {
 
 
 int Read::read() {
-	if (size() <= 0)
+	if (size <= 0)
 		return 0;
 
 	// Trigger reads of finished pieces, dans le cas où c'est déjà téléchargé
@@ -274,7 +263,7 @@ int Read::read() {
 	if (failed)
 		return -EIO;
 	else
-		return size();
+		return size;
 }
 
 static void
