@@ -36,6 +36,7 @@ namespace btfs
 
 class Part;
 class Read;
+class InfosCopy;
 
 typedef std::vector<Part>::iterator parts_iter;
 typedef std::list<Read*>::iterator reads_iter;
@@ -67,7 +68,7 @@ public:
 	void fail(int piece);
 
 	void copy(int piece, char *buffer);
-
+	void copy_async(InfosCopy * inf) ;
 	void trigger();
 
 	void seek_and_read (int numPiece);
@@ -134,6 +135,28 @@ public:
 private:
 	std::string path;
 };
+
+
+class InfosCopy {
+
+	public :
+		InfosCopy(int p , char * b){
+		
+			num_piece = p ;
+			buffer = b ;
+		
+		}
+
+
+
+		int num_piece ;
+		char * buffer ;
+
+
+
+};
+
+
 
 struct btfs_params {
 	int version;

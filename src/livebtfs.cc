@@ -30,6 +30,7 @@ along with BTFS.  If not, see <http://www.gnu.org/licenses/>.
 #include <sys/stat.h>
 
 #include <fuse.h>
+#include <thread>
 
 // The below pragma lines will silence lots of compiler warnings in the
 // libtorrent headers file. Not livebtfs' fault.
@@ -119,6 +120,44 @@ void Read::fail(int piece) {
 		}
 	}
 }
+
+
+void Read::copy_async(InfosCopy * inf) {
+
+	pthread_mutex_lock(&lock);
+	int piece = inf->num_piece ;
+	char * buffer = inf->buffer ;
+
+	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
+		if( i->part.piece > piece ){
+			delete inf ;
+			pthread_mutex_unlock(&lock);
+
+			return;
+		}
+		if( i->part.piece == piece )
+		{
+			if( i->state != filled )
+				if ( (memcpy(i->buf, buffer + i->part.start, (size_t) i->part.length)) != NULL )
+				{
+					i->state = filled;
+					nbPieceNotFilled--;
+					if ( finished() )
+						pthread_mutex_unlock (&waitFinished);
+				}
+
+			pthread_mutex_unlock(&lock);
+			delete inf ;
+			return;
+		}
+	}
+
+	pthread_mutex_unlock(&lock);
+	delete inf ;
+
+}
+
+
 
 void Read::copy(int piece, char *buffer) {
 	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
@@ -246,6 +285,48 @@ setup() {
 
 static void
 handle_read_piece_alert(libtorrent::read_piece_alert *a, Log *log) {
+
+	//libtorrent::read_piece_alert *a =  (libtorrent::read_piece_alert *) info->m_a ; 
+	//Log *log = info->m_log ;
+
+	#ifdef _DEBUG
+	printf("%s: piece %d size %d\n", __func__, static_cast<int>(a->piece),
+		a->size);
+	#endif
+	
+	std::vector<std::thread *> threads ; 
+
+	pthread_mutex_lock(&lock);
+
+	if (a->ec) {
+		*log << a->message() << std::endl;
+
+		for (reads_iter i = reads.begin(); i != reads.end(); ++i) {
+			(*i)->fail(a->piece);
+		}
+	} else {
+
+		for (reads_iter i = reads.begin(); i != reads.end(); ++i) {
+		
+			InfosCopy * info = new InfosCopy(a->piece,a->buffer.get());
+			std::thread * th = new std::thread(&Read::copy_async,(*i),info);
+			threads.push_back(th);
+
+				//		(*i)->copy(a->piece, a->buffer.get()); // not break because piece can be in other of reads
+		}
+	}
+
+	pthread_mutex_unlock(&lock);
+	
+	for (std::vector<std::thread *>::iterator i = threads.begin(); i != threads.end(); ++i){ 
+		if ((*i)->joinable())
+			(*i)->join();
+	}
+}
+
+
+/*static void
+handle_read_piece_alert(libtorrent::read_piece_alert *a, Log *log) {
 	#ifdef _DEBUG
 	printf("%s: piece %d size %d\n", __func__, static_cast<int>(a->piece),
 		a->size);
@@ -266,7 +347,8 @@ handle_read_piece_alert(libtorrent::read_piece_alert *a, Log *log) {
 	}
 
 	pthread_mutex_unlock(&lock);
-}
+}*/
+
 
 static void
 handle_piece_finished_alert(libtorrent::piece_finished_alert *a, Log *log) {
