@@ -124,14 +124,12 @@ void Read::fail(int piece) {
 
 void Read::copy_async(InfosCopy * inf) {
 
-	pthread_mutex_lock(&lock);
 	int piece = inf->num_piece ;
 	char * buffer = inf->buffer ;
 
 	for (parts_iter i = parts.begin(); i != parts.end(); ++i) {
 		if( i->part.piece > piece ){
 			delete inf ;
-			pthread_mutex_unlock(&lock);
 
 			return;
 		}
@@ -146,13 +144,11 @@ void Read::copy_async(InfosCopy * inf) {
 						pthread_mutex_unlock (&waitFinished);
 				}
 
-			pthread_mutex_unlock(&lock);
 			delete inf ;
 			return;
 		}
 	}
 
-	pthread_mutex_unlock(&lock);
 	delete inf ;
 
 }
