@@ -166,13 +166,22 @@ void Read::copy(int piece, char *buffer) {
 		if( i->part.piece == piece )
 		{
 			if( i->state != filled )
+			{
 				if ( (memcpy(i->buf, buffer + i->part.start, (size_t) i->part.length)) != NULL )
 				{
+					clock_t date_copy=clock();
+					printf("-------> temps creation piece %d : %f\n",piece, ((double)date_copy-i->date_creation) / CLOCKS_PER_SEC);
 					i->state = filled;
 					nbPieceNotFilled--;
 					if ( finished() )
 						isFinished();
 				}
+				else printf("error copy piece : %d\n",piece);
+			}
+			else
+			{
+				printf("piece %d deja rempli\n",piece);
+			}
 			return;
 		}
 	}
@@ -372,26 +381,27 @@ handle_alert(libtorrent::alert *a) {
 
 	switch (a->type()) {
 	case libtorrent::read_piece_alert::alert_type:
+		//std::cout << "read_piece_alert : " << a->message() << std::endl;
 		handle_read_piece_alert(
 			(libtorrent::read_piece_alert *) a);
 		break;
 	case libtorrent::piece_finished_alert::alert_type:
-		//std::cout << a->message() << std::endl;
+		//std::cout << "piece_finished_alert : " << a->message() << std::endl;
 		handle_piece_finished_alert(
 			(libtorrent::piece_finished_alert *) a);
 		break;
 	case libtorrent::metadata_received_alert::alert_type:
-		//std::cout << a->message() << std::endl;
+		//std::cout << "metadata_received_alert : " << a->message() << std::endl;
 		handle_metadata_received_alert(
 			(libtorrent::metadata_received_alert *) a);
 		break;
 	case libtorrent::torrent_added_alert::alert_type:
-		//std::cout << a->message() << std::endl;
+		//std::cout << "torrent_added_alert : " << a->message() << std::endl;
 		handle_torrent_added_alert(
 			(libtorrent::torrent_added_alert *) a);
 		break;
 	case libtorrent::dht_bootstrap_alert::alert_type:
-		//std::cout << a->message() << std::endl;
+		//std::cout << "dht_bootstrap_alert : " << a->message() << std::endl;
 		// Force DHT announce because libtorrent won't by itself
 		handle.force_dht_announce();
 		break;
@@ -404,16 +414,18 @@ handle_alert(libtorrent::alert *a) {
 	case libtorrent::tracker_warning_alert::alert_type:
 	case libtorrent::tracker_error_alert::alert_type:
 	case libtorrent::lsd_peer_alert::alert_type:
-		//std::cout << a->message() << std::endl;
+		//std::cout << "messages : " << a->message() << std::endl;
 		break;
 	case libtorrent::stats_alert::alert_type:
-		//std::cout << a->message() << std::endl;
+		//std::cout << "stats_alert : " << a->message() << std::endl;
 		break;
 #endif
 	case libtorrent::torrent_removed_alert::alert_type:
+		//std::cout << "torrent_removed_alert : " << a->message() << std::endl;
 		handle_torrent_removed_alert();
 		break;
 	default:
+		//std::cout << "inconnu message : " << a->message() << std::endl;
 		break;
 	}
 }
@@ -433,6 +445,8 @@ alert_queue_loop(void *data) {
 
 	std::vector<libtorrent::alert*> alerts;
 
+	//clock_t debut_hors_traitement=clock();
+
 	while (1) {
 		// wait_for_alert is unlock as soon as new alert
 		if (!session->wait_for_alert(libtorrent::seconds(3600)))
@@ -440,10 +454,19 @@ alert_queue_loop(void *data) {
 
 		session->pop_alerts(&alerts);
 
+		//clock_t fin_hors_traitement=clock();
+		//printf("temps d'attente avant arrive message : %f\n",((double)fin_hors_traitement-debut_hors_traitement) / CLOCKS_PER_SEC);
+
+		//clock_t debut_traitement=clock();
+		//printf("[\n");
 		for (std::vector<libtorrent::alert*>::iterator i =
 				alerts.begin(); i != alerts.end(); ++i) {
 			handle_alert(*i);
 		}
+		//clock_t fin_traitement=clock();
+		//printf("Duree du traitement : %f]\n",((double)fin_traitement-debut_traitement) / CLOCKS_PER_SEC);
+
+		//debut_hors_traitement=clock();
 	}
 
 	pthread_cleanup_pop(1);
@@ -697,6 +720,8 @@ btfs_init(struct fuse_conn_info *conn) {
 	pack.set_bool(libtorrent::settings_pack::prioritize_partial_pieces, true);
 	pack.set_bool(libtorrent::settings_pack::close_redundant_connections, false);
 	pack.set_bool(libtorrent::settings_pack::allow_multiple_connections_per_ip, true);
+
+	//pack.set_bool(libtorrent::settings_pack::low_prio_disk, false);
 
 	session = new libtorrent::session(pack, flags);
 

@@ -49,7 +49,10 @@ class Part
 public:
 	Part(libtorrent::peer_request p, char *b) : part(p), buf(b)
 	{
+		date_creation=clock();
 	}
+
+	clock_t date_creation;
 
 private:
 	libtorrent::peer_request part;
