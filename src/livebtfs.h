@@ -81,6 +81,8 @@ public:
 
 	int read();
 
+	clock_t date_creation;
+
 private:
 	bool failed = false;
 

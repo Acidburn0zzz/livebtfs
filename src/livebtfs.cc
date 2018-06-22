@@ -121,6 +121,8 @@ void Read::verify_to_ask (int numPiece) {
 Read::Read(char *buf, int index, off_t offset, size_t size) {
 	auto ti = handle.torrent_file();
 
+	date_creation=clock();
+
 	pthread_mutex_lock (&waitFinished); // lock the mutex waitFinished
 
 	int64_t file_size = ti->files().file_size(index);
@@ -170,7 +172,7 @@ void Read::copy(int piece, char *buffer) {
 				if ( (memcpy(i->buf, buffer + i->part.start, (size_t) i->part.length)) != NULL )
 				{
 					clock_t date_copy=clock();
-					printf("-------> temps creation piece %d : %f\n",piece, ((double)date_copy-i->date_creation) / CLOCKS_PER_SEC);
+					printf("-------> durée de vie de la piece %d : %f\n",piece, ((double)date_copy-i->date_creation) / CLOCKS_PER_SEC);
 					i->state = filled;
 					nbPieceNotFilled--;
 					if ( finished() )
@@ -243,6 +245,10 @@ int Read::read() {
 	trigger();
 
 	pthread_mutex_lock (&waitFinished); // lock because already lock by himself
+
+	clock_t date_fin=clock();
+	parts_iter i = parts.begin();
+	printf("=================> Temps de vie de Read (%d %zu): %f\n",i->part.piece,parts.size(),((double)date_fin-date_creation) / CLOCKS_PER_SEC);
 
 	if (failed)
 		return -EIO;
@@ -445,7 +451,7 @@ alert_queue_loop(void *data) {
 
 	std::vector<libtorrent::alert*> alerts;
 
-	//clock_t debut_hors_traitement=clock();
+	clock_t debut_hors_traitement=clock();
 
 	while (1) {
 		// wait_for_alert is unlock as soon as new alert
@@ -454,19 +460,19 @@ alert_queue_loop(void *data) {
 
 		session->pop_alerts(&alerts);
 
-		//clock_t fin_hors_traitement=clock();
-		//printf("temps d'attente avant arrive message : %f\n",((double)fin_hors_traitement-debut_hors_traitement) / CLOCKS_PER_SEC);
+		clock_t fin_hors_traitement=clock();
+		printf("temps d'attente avant arrive message : %f\n",((double)fin_hors_traitement-debut_hors_traitement) / CLOCKS_PER_SEC);
 
-		//clock_t debut_traitement=clock();
-		//printf("[\n");
+		clock_t debut_traitement=clock();
+		printf("[\n");
 		for (std::vector<libtorrent::alert*>::iterator i =
 				alerts.begin(); i != alerts.end(); ++i) {
 			handle_alert(*i);
 		}
-		//clock_t fin_traitement=clock();
-		//printf("Duree du traitement : %f]\n",((double)fin_traitement-debut_traitement) / CLOCKS_PER_SEC);
+		clock_t fin_traitement=clock();
+		printf("Duree du traitement : %f]\n",((double)fin_traitement-debut_traitement) / CLOCKS_PER_SEC);
 
-		//debut_hors_traitement=clock();
+		debut_hors_traitement=clock();
 	}
 
 	pthread_cleanup_pop(1);
