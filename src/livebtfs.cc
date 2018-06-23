@@ -585,9 +585,11 @@ btfs_read(const char *path, char *buf, size_t size, off_t offset,
 	if (params.browse_only)
 		return -EACCES;
 
-	pthread_mutex_lock(&lock);
+	clock_t creation=clock();
 
 	Read *r = new Read(buf, files[path], offset, size);
+
+	pthread_mutex_lock(&lock);
 
 	reads.push_back(r);
 
@@ -600,9 +602,12 @@ btfs_read(const char *path, char *buf, size_t size, off_t offset,
 
 	reads.remove(r);
 
+	pthread_mutex_unlock(&lock);
+
 	delete r;
 
-	pthread_mutex_unlock(&lock);
+	clock_t fin=clock();
+	printf("******************************************************** Fin piece %zu %zu : %f\n",offset, size, ((double)fin-creation) / CLOCKS_PER_SEC);
 
 	return s;
 }
