@@ -587,6 +587,8 @@ btfs_read(const char *path, char *buf, size_t size, off_t offset,
 
 	clock_t creation=clock();
 
+	printf("**************************------------------------------ Debut read %zu %zu\n",offset, size);
+
 	Read *r = new Read(buf, files[path], offset, size);
 
 	pthread_mutex_lock(&lock);
@@ -607,7 +609,7 @@ btfs_read(const char *path, char *buf, size_t size, off_t offset,
 	delete r;
 
 	clock_t fin=clock();
-	printf("******************************************************** Fin piece %zu %zu : %f\n",offset, size, ((double)fin-creation) / CLOCKS_PER_SEC);
+	printf("******************************************************** Fin read %zu %zu : %f\n",offset, size, ((double)fin-creation) / CLOCKS_PER_SEC);
 
 	return s;
 }
