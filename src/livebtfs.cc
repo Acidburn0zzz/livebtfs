@@ -573,9 +573,17 @@ btfs_open(const char *path, struct fuse_file_info *fi) {
 	return 0;
 }
 
+clock_t debut_new_btfs_read;
+clock_t fin_old_btfs_read;
+
 static int
 btfs_read(const char *path, char *buf, size_t size, off_t offset,
 		struct fuse_file_info *fi) {
+
+	debut_new_btfs_read=clock();
+
+	printf("temps entre 2 btfs_read : %f\n",((double)debut_new_btfs_read-fin_old_btfs_read) / CLOCKS_PER_SEC);
+
 	if (!is_dir(path) && !is_file(path))
 		return -ENOENT;
 
@@ -610,6 +618,8 @@ btfs_read(const char *path, char *buf, size_t size, off_t offset,
 
 	clock_t fin=clock();
 	printf("******************************************************** Fin read %zu %zu : %f\n",offset, size, ((double)fin-creation) / CLOCKS_PER_SEC);
+
+	fin_old_btfs_read=clock();
 
 	return s;
 }
