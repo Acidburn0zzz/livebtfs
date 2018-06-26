@@ -172,17 +172,17 @@ void Read::copy(int piece, char *buffer) {
 				if ( (memcpy(i->buf, buffer + i->part.start, (size_t) i->part.length)) != NULL )
 				{
 					clock_t date_copy=clock();
-					printf("-------> durée de vie de la piece %d : %f\n",piece, ((double)date_copy-i->date_creation) / CLOCKS_PER_SEC);
+					//printf("-------> durée de vie de la piece %d : %f\n",piece, ((double)date_copy-i->date_creation) / CLOCKS_PER_SEC);
 					i->state = filled;
 					nbPieceNotFilled--;
 					if ( finished() )
 						isFinished();
 				}
-				else printf("error copy piece : %d\n",piece);
+				//else printf("error copy piece : %d\n",piece);
 			}
 			else
 			{
-				printf("piece %d deja rempli\n",piece);
+				//printf("piece %d deja rempli\n",piece);
 			}
 			return;
 		}
@@ -248,7 +248,7 @@ int Read::read() {
 
 	clock_t date_fin=clock();
 	parts_iter i = parts.begin();
-	printf("=================> Temps de vie de Read (%d %zu): %f\n",i->part.piece,parts.size(),((double)date_fin-date_creation) / CLOCKS_PER_SEC);
+	//printf("=================> Temps de vie de Read (%d %zu): %f\n",i->part.piece,parts.size(),((double)date_fin-date_creation) / CLOCKS_PER_SEC);
 
 	if (failed)
 		return -EIO;
@@ -461,16 +461,16 @@ alert_queue_loop(void *data) {
 		session->pop_alerts(&alerts);
 
 		clock_t fin_hors_traitement=clock();
-		printf("temps d'attente avant arrive message : %f\n",((double)fin_hors_traitement-debut_hors_traitement) / CLOCKS_PER_SEC);
+		//printf("temps d'attente avant arrive message : %f\n",((double)fin_hors_traitement-debut_hors_traitement) / CLOCKS_PER_SEC);
 
 		clock_t debut_traitement=clock();
-		printf("[\n");
+		//printf("[\n");
 		for (std::vector<libtorrent::alert*>::iterator i =
 				alerts.begin(); i != alerts.end(); ++i) {
 			handle_alert(*i);
 		}
 		clock_t fin_traitement=clock();
-		printf("Duree du traitement : %f]\n",((double)fin_traitement-debut_traitement) / CLOCKS_PER_SEC);
+		//printf("Duree du traitement : %f]\n",((double)fin_traitement-debut_traitement) / CLOCKS_PER_SEC);
 
 		debut_hors_traitement=clock();
 	}
